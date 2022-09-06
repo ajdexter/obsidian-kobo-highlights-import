@@ -73,6 +73,10 @@ class ExtractHighlightsModal extends Modal {
 		this.settings = settings
 	}
 
+	async exportHiglights() {
+
+	}
+
 	async fetchHighlights() {
 
 		if (!this.sqlFilePath) {
