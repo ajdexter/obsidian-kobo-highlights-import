@@ -4,6 +4,8 @@ import { addIcon, App, Modal, normalizePath, Notice, Plugin } from 'obsidian';
 import { sanitize } from "sanitize-filename-ts";
 import SqlJs from 'sql.js';
 import { binary } from './binaries/sql-wasm';
+import { HighlightService } from './database/Highlight';
+import { Repository } from './database/repository';
 import { DEFAULT_SETTINGS, KoboHighlightsImporterSettings, KoboHighlightsImporterSettingsTab } from './settings/Settings';
 declare module 'obsidian' {
 	interface FileSystemAdapter {
@@ -73,10 +75,6 @@ class ExtractHighlightsModal extends Modal {
 		this.settings = settings
 	}
 
-	async exportHiglights() {
-
-	}
-
 	async fetchHighlights() {
 
 		if (!this.sqlFilePath) {
@@ -86,27 +84,44 @@ class ExtractHighlightsModal extends Modal {
 		const SQLEngine = await SqlJs({
 			wasmBinary: binary
 		})
-
 		const fileBuffer = fs.readFileSync(this.sqlFilePath)
-		const DB = new SQLEngine.Database(fileBuffer)
-		const results = DB.exec(HIGHLIGHTS_QUERY)
-		const transformedRows = transformResults(results[0].values, this.settings.includeCreatedDate, this.settings.dateFormat)
+		const db = new SQLEngine.Database(fileBuffer)
 
-		if (this.app.vault.adapter) {
-			for (const book in transformedRows) {
-				let content = `# ${book}\n\n`;
-				for (const chapter in transformedRows[book]) {
-					content += `## ${chapter}\n\n`
-					content += transformedRows[book][chapter].join('\n\n')
-					content += `\n\n`
-				}
-				const saniizedBookName = sanitize(book)
-				const fileName = normalizePath(`${this.settings.storageFolder}/${saniizedBookName}.md`)
-				this.app.vault.adapter.write(fileName, content)
+		const service: HighlightService = new HighlightService(
+			new Repository(
+				db
+			)
+		)
+
+		const res = await service.getAllHighlight()
+		const books = new Map<string, Map<string, string[]>>()
+		res.forEach(x => {
+			if (!x.content.bookTitle) {
+				throw new Error("bookTitle must be set")
 			}
+			const existingBook = books.get(x.content.bookTitle)
+			if (existingBook) {
+				const existingChapter = existingBook.get(x.content.title)
+				if (existingChapter) {
+					existingChapter.push(x.bookmark.text)
+				} else {
+					existingBook.set(x.content.title, [x.bookmark.text])
+				}
+			} else {
+				books.set(x.content.bookTitle, new Map<string, string[]>().set(x.content.title, [x.bookmark.text]))
+			}
+		})
 
-		} else {
-			throw new Error('Cannot create new files: adapter not found');
+		for (const [book, highlights] of books) {
+			let content = `# ${book}\n\n`;
+			for (const [chapter, highlight] of highlights) {
+				content += `## ${chapter}\n\n`
+				content += highlight.join('\n\n')
+				content += `\n\n`
+			}
+			const saniizedBookName = sanitize(book)
+			const fileName = normalizePath(`${this.settings.storageFolder}/${saniizedBookName}.md`)
+			this.app.vault.adapter.write(fileName, content)
 		}
 	}
 

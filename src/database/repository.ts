@@ -52,6 +52,18 @@ export class Repository {
         return contents
     }
 
+    async getAllContentByBookTitle(bookTitle: string): Promise<Content[]> {
+        const statement = this.db.prepare(
+            `select Title, ContentID, ChapterIDBookmarked, BookTitle  from "content" where BookTitle = $bookTitle order by ContentID`,
+            { $bookTitle: bookTitle },
+        )
+
+        const contents = this.parseContentStatement(statement)
+        statement.free()
+
+        return contents
+    }
+
     private parseContentStatement(statement: Statement): Content[] {
         const contents: Content[] = []
 
