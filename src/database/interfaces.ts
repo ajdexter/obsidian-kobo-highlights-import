@@ -1,7 +1,9 @@
+
 export interface Bookmark {
     text: string;
     contentId: string;
     note?: string;
+    dateCreated: Date
 }
 
 export interface Content {

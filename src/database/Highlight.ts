@@ -13,10 +13,13 @@ export class HighlightService {
 
         const bookmarks = await this.repo.getAllBookmark()
         for (const bookmark of bookmarks) {
-            const content = await this.repo.getContentByContentId(bookmark.contentId)
+            let content = await this.repo.getContentByContentId(bookmark.contentId)
 
             if (content == null) {
-                throw Error("bookmark seems to link to a non existing content")
+                content = await this.repo.getContentLikeContentId(bookmark.contentId)
+                if (content == null) {
+                    throw Error(`bookmark seems to link to a non existing content: ${bookmark.contentId}`)
+                }
             }
 
             if (content.chapterIdBookmarked == null) {
@@ -38,8 +41,8 @@ export class HighlightService {
                 throw new Error("bookTitle must be set");
             }
 
-            return a.content.bookTitle.localeCompare(b.content.bookTitle ?? "") ||
-                a.content.title.localeCompare(b.content.title);
+            return a.content.bookTitle.localeCompare(b.content.bookTitle) ||
+                a.content.contentId.localeCompare(b.content.contentId);
         })
     }
 
@@ -48,9 +51,9 @@ export class HighlightService {
             throw new Error("bookTitle field must be set")
         }
 
-        const contents = await this.repo.getAllContentByBookTitle(originalContent.bookTitle)
-        const potential = await this.repo.getContentByContentId(`${originalContent.contentId}-1`)
-        if (potential && potential.chapterIdBookmarked) {
+        const contents = await this.repo.getAllContentByBookTitleOrderedByContentId(originalContent.bookTitle)
+        const potential = await this.repo.getFirstContentLikeContentIdWithBookmarkIdNotNull(originalContent.contentId)
+        if (potential) {
             return potential
         }
 
@@ -66,7 +69,9 @@ export class HighlightService {
             }
         }
 
-        console.warn(`was not able to find chapterIdBookmarked for book ${originalContent.bookTitle}`)
+        if (foundContent) {
+            console.warn(`was not able to find chapterIdBookmarked for book ${originalContent.bookTitle}`)
+        }
 
         return originalContent
     }

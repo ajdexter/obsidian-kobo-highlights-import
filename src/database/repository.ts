@@ -9,14 +9,19 @@ export class Repository {
     }
 
     async getAllBookmark(): Promise<Bookmark[]> {
-        const res = this.db.exec(`select Text, ContentID, annotation from Bookmark;`)
+        const res = this.db.exec(`select Text, ContentID, annotation, DateCreated from Bookmark where Text is not null;`)
         const bookmakrs: Bookmark[] = []
 
         res[0].values.forEach(row => {
+            if (!(row[0] && row[1] && row[3])) {
+                throw new Error("Bookmark column returned unexpected null")
+            }
+
             bookmakrs.push({
-                text: row[0]?.toString() ?? "",
-                contentId: row[1]?.toString() ?? "",
-                note: row[2]?.toString()
+                text: row[0].toString().replace(/\s+/g, ' ').trim(),
+                contentId: row[1].toString(),
+                note: row[2]?.toString(),
+                dateCreated: new Date(row[3].toString())
             })
         });
 
@@ -40,6 +45,36 @@ export class Repository {
         return contents.pop() || null
     }
 
+    async getContentLikeContentId(contentId: string): Promise<Content | null> {
+        const statement = this.db.prepare(
+            `select 
+                Title, ContentID, ChapterIDBookmarked, BookTitle from content
+                where ContentID like $id;`,
+            { $id: `${contentId}%` },
+        )
+        const contents = this.parseContentStatement(statement)
+        statement.free()
+
+        if (contents.length > 1) {
+            throw new Error(`filtering by contentId yielded more then 1 result: ${contentId}`)
+        }
+
+        return contents.pop() || null
+    }
+
+    async getFirstContentLikeContentIdWithBookmarkIdNotNull(contentId: string) {
+        const statement = this.db.prepare(
+            `select 
+                Title, ContentID, ChapterIDBookmarked, BookTitle from "content" 
+                where "ContentID" like $id and "ChapterIDBookmarked" not NULL limit 1`,
+            { $id: `${contentId}%` },
+        )
+        const contents = this.parseContentStatement(statement)
+        statement.free()
+
+        return contents.pop() || null
+    }
+
     async getAllContent(limit = 100): Promise<Content[]> {
         const statement = this.db.prepare(
             `select Title, ContentID, ChapterIDBookmarked, BookTitle from content limit $limit`,
@@ -54,7 +89,19 @@ export class Repository {
 
     async getAllContentByBookTitle(bookTitle: string): Promise<Content[]> {
         const statement = this.db.prepare(
-            `select Title, ContentID, ChapterIDBookmarked, BookTitle  from "content" where BookTitle = $bookTitle order by ContentID`,
+            `select Title, ContentID, ChapterIDBookmarked, BookTitle  from "content" where BookTitle = $bookTitle`,
+            { $bookTitle: bookTitle },
+        )
+
+        const contents = this.parseContentStatement(statement)
+        statement.free()
+
+        return contents
+    }
+
+    async getAllContentByBookTitleOrderedByContentId(bookTitle: string): Promise<Content[]> {
+        const statement = this.db.prepare(
+            `select Title, ContentID, ChapterIDBookmarked, BookTitle  from "content" where BookTitle = $bookTitle order by "ContentID"`,
             { $bookTitle: bookTitle },
         )
 
