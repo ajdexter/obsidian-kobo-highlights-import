@@ -18,7 +18,7 @@ const EREADER_ICON_PATH = `<path stroke="currentColor" fill="currentColor" d="M 
 // Remember to rename these classes and interfaces!
 
 export default class KoboHighlightsImporter extends Plugin {
-	settings: KoboHighlightsImporterSettings;
+	settings!: KoboHighlightsImporterSettings;
 
 	async onload() {
 		addIcon('e-reader', EREADER_ICON_PATH)
@@ -56,8 +56,8 @@ export default class KoboHighlightsImporter extends Plugin {
 }
 
 class ExtractHighlightsModal extends Modal {
-	goButtonEl: HTMLButtonElement
-	inputFileEl: HTMLInputElement
+	goButtonEl!: HTMLButtonElement;
+	inputFileEl!: HTMLInputElement
 
 	settings: KoboHighlightsImporterSettings
 
