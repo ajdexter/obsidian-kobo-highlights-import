@@ -24,6 +24,12 @@ describe('Repository', async function () {
     it('getAllBookmark', async function () {
         chai.expect(await repo.getAllBookmark()).length.above(0)
     });
+    it('getBookmarkById null', async function () {
+        chai.expect(await repo.getBookmarkById("")).is.null
+    });
+    it('getBookmarkById not null', async function () {
+        chai.expect(await repo.getBookmarkById("e7f8f92d-38ca-4556-bab8-a4d902e9c430")).is.not.null
+    });
     it('getAllContent', async function () {
         chai.expect(await repo.getAllContent()).length.above(0)
     });

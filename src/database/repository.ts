@@ -28,6 +28,38 @@ export class Repository {
         return bookmakrs
     }
 
+    async getTotalBookmark(): Promise<number> {
+        const res = this.db.exec(`select count(*) from Bookmark where Text is not null;`)
+
+        return +res[0].values[0].toString()
+    }
+
+    async getBookmarkById(id: string): Promise<Bookmark | null> {
+        const statement = this.db.prepare(
+            `select Text, ContentID, annotation, DateCreated from Bookmark where BookmarkID = $id;`,
+            {
+                $id: id
+            }
+        )
+
+        if (!statement.step()) {
+            return null
+        }
+
+        const row = statement.get()
+
+        if (!(row[0] && row[1] && row[3])) {
+            throw new Error("Bookmark column returned unexpected null")
+        }
+
+        return {
+            text: row[0].toString().replace(/\s+/g, ' ').trim(),
+            contentId: row[1].toString(),
+            note: row[2]?.toString(),
+            dateCreated: new Date(row[3].toString())
+        }
+    }
+
     async getContentByContentId(contentId: string): Promise<Content | null> {
         const statement = this.db.prepare(
             `select 

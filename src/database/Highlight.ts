@@ -1,5 +1,10 @@
+import moment from 'moment';
 import { Bookmark, Content, Highlight } from "./interfaces";
 import { Repository } from "./repository";
+
+type bookTitle = string
+type chapter = string
+type highlight = string
 
 export class HighlightService {
     repo: Repository
@@ -8,32 +13,55 @@ export class HighlightService {
         this.repo = repo
     }
 
-    async getAllHighlight() {
+    fromMapToMarkdown(bookTitle: string, chapters: Map<chapter, highlight[]>): string {
+        let markdown = `# ${bookTitle}\n\n`;
+        for (const [chapter, highlights] of chapters) {
+            markdown += `## ${chapter}\n\n`
+            markdown += highlights.join('\n\n')
+            markdown += `\n\n`
+        }
+
+        return markdown
+    }
+
+    convertToMap(arr: Highlight[], includeDate: boolean, dateFormat: string): Map<bookTitle, Map<chapter, highlight[]>> {
+        const m = new Map<string, Map<string, string[]>>()
+
+        arr.forEach(x => {
+            if (!x.content.bookTitle) {
+                throw new Error("bookTitle must be set")
+            }
+
+            let text = x.bookmark.text
+
+            if (includeDate) {
+                text = text + ` - [[${moment(x.bookmark.dateCreated).format(dateFormat)}]]`
+            }
+
+            const existingBook = m.get(x.content.bookTitle)
+
+            if (existingBook) {
+                const existingChapter = existingBook.get(x.content.title)
+
+                if (existingChapter) {
+                    existingChapter.push(text)
+                } else {
+                    existingBook.set(x.content.title, [text])
+                }
+            } else {
+                m.set(x.content.bookTitle, new Map<string, string[]>().set(x.content.title, [text]))
+            }
+        })
+
+        return m
+    }
+
+    async getAllHighlight(): Promise<Highlight[]> {
         const highlights: Highlight[] = []
 
         const bookmarks = await this.repo.getAllBookmark()
         for (const bookmark of bookmarks) {
-            let content = await this.repo.getContentByContentId(bookmark.contentId)
-
-            if (content == null) {
-                content = await this.repo.getContentLikeContentId(bookmark.contentId)
-                if (content == null) {
-                    throw Error(`bookmark seems to link to a non existing content: ${bookmark.contentId}`)
-                }
-            }
-
-            if (content.chapterIdBookmarked == null) {
-                highlights.push({
-                    bookmark: bookmark,
-                    content: await this.findRightContentForBookmark(bookmark, content)
-                })
-                continue
-            }
-
-            highlights.push({
-                bookmark: bookmark,
-                content: content
-            })
+            highlights.push(await this.createHilightFromBookmark(bookmark))
         }
 
         return highlights.sort(function (a, b): number {
@@ -44,6 +72,29 @@ export class HighlightService {
             return a.content.bookTitle.localeCompare(b.content.bookTitle) ||
                 a.content.contentId.localeCompare(b.content.contentId);
         })
+    }
+
+    async createHilightFromBookmark(bookmark: Bookmark): Promise<Highlight> {
+        let content = await this.repo.getContentByContentId(bookmark.contentId)
+
+        if (content == null) {
+            content = await this.repo.getContentLikeContentId(bookmark.contentId)
+            if (content == null) {
+                throw Error(`bookmark seems to link to a non existing content: ${bookmark.contentId}`)
+            }
+        }
+
+        if (content.chapterIdBookmarked == null) {
+            return {
+                bookmark: bookmark,
+                content: await this.findRightContentForBookmark(bookmark, content)
+            }
+        }
+
+        return {
+            bookmark: bookmark,
+            content: content
+        }
     }
 
     private async findRightContentForBookmark(bookmark: Bookmark, originalContent: Content): Promise<Content> {
