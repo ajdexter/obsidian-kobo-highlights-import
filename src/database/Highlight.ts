@@ -39,7 +39,7 @@ export class HighlightService {
             let text = `> ${x.bookmark.text}`
 
             if (x.bookmark.note) {
-                text += `\n\n ${x.bookmark.note}`
+                text += `\n\n${x.bookmark.note}`
             }
 
             if (includeDate) {
